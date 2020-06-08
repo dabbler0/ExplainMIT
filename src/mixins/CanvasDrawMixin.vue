@@ -1,10 +1,14 @@
-export default {
+<script lang="ts">
+import Vue, { PropType } from "vue"; 
+import mixins from "vue-typed-mixins";
+
+export default Vue.extend({
   methods: {
-    /*
-      Adjust the internal dimensions of the canvas to match its external display dimensions 
-      Assumes there is a back canvas, and will redraw the background but not the strokes
-    */
-    $_rescaleCanvas () {
+    /**
+     * Adjust the internal dimensions of the canvas to match its external display dimensions.
+     * Assumes there is a back canvas, and will redraw the background but not the strokes.
+     */
+    $_rescaleCanvas (): boolean {
       const { width, scrollWidth, height, scrollHeight } = this.canvas; 
       if (Math.round(width) !== Math.round(scrollWidth) || Math.round(height) !== Math.round(scrollHeight)) {
         this.canvas.width = this.canvas.scrollWidth; // width = internal coordinate system 1:1, scrollWidth = external dimension
@@ -15,36 +19,38 @@ export default {
         this.bgCanvas.width = this.bgCanvas.scrollWidth;
 
         this.$_renderBackground(this.imageBlobUrl);
-        return true
+        return true;
       }
-      return false
+      return false;
     },
-    /*
-      Renders a background if one exists
-    */
-    $_renderBackground (imageBlobUrl) {
-      return new Promise((resolve) => {
-        if (!imageBlobUrl) { resolve(); }
-        const image = new Image();
-        image.src = imageBlobUrl; 
-        this.bgCanvas.width = this.canvas.width;
-        this.bgCanvas.height = this.canvas.height;
-        image.onload = () => {
-          this.bgCtx.drawImage(image, 0, 0, this.bgCanvas.width, this.bgCanvas.height);
-          resolve();
-        } 
+    /**
+     *  Renders a background if one exists
+     */
+    $_renderBackground (imageBlobUrl: string): void {
+      return new Promise(resolve => {
+        if (!imageBlobUrl) resolve(); 
+        else {
+          const image = new Image();
+          image.src = imageBlobUrl; 
+          this.bgCanvas.width = this.canvas.width;
+          this.bgCanvas.height = this.canvas.height;
+          image.onload = () => {
+            this.bgCtx.drawImage(image, 0, 0, this.bgCanvas.width, this.bgCanvas.height);
+            resolve();
+          } 
+        }
       });
     },
-    async $_quickplay () {
+    async $_quickplay (): void {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       for (const stroke of this.strokesArray) {
         await this.$_drawStroke(stroke, 0); // draw 1 stroke per event loop
       }
     },
-    $_drawStrokesInstantly () {
+    $_drawStrokesInstantly (): void {
       this.strokesArray.forEach(stroke => this.$_drawStroke(stroke));
     },
-    $_drawStroke ({ points, color, lineWidth, isErasing }, pointPeriod = null) {
+    $_drawStroke ({ points, color, lineWidth, isErasing }, pointPeriod = null): void {
       return new Promise(async resolve => {
         const newLineWidth = lineWidth * (this.canvas.width / 1000); // scale line width to canvas width
         this.$_setStyle(color, newLineWidth);
@@ -57,7 +63,7 @@ export default {
         resolve();
       });
     },
-    $_connectTwoPoints (points, i, isErasing) {
+    $_connectTwoPoints (points, i, isErasing): void {
       // TODO: this silently fails for edge case if a stroke only has 1 point
       const prevPoint = points[i - 1]; // this fails silently for the first point of the stroke i = 0
       const prevX = prevPoint.unitX * this.canvas.width;
@@ -73,20 +79,21 @@ export default {
       this.ctx.lineTo(curX, curY);
       this.ctx.stroke();
     },
-    $_setStyle (color = "white", lineWidth = 2) {
+    $_setStyle (color = "white", lineWidth = 2): void {
       this.ctx.strokeStyle = color;
       this.ctx.lineWidth = lineWidth;
       this.ctx.lineCap = "round"; // lines at different angles can join into each other
     },
-    $_drawStrokesInstantly2 () {
+    // TODO: refactor
+    $_drawStrokesInstantly2 (): void {
       this.strokesArray.forEach((stroke) => {
         if (!stroke.isErasing && !stroke.wasErased) {
           this.$_drawStroke2(stroke);
         }
       });
     },
-    $_drawStroke2 ({ points, color, lineWidth, isErasing}, pointPeriod = null) {
-      return new Promise(async (resolve) => {
+    $_drawStroke2 ({ points, color, lineWidth, isErasing}, pointPeriod = null): void {
+      return new Promise(async resolve => {
         let newLineWidth = lineWidth * (this.canvas.width / 1000); // scale line width to canvas width
         this.$_setStyle2(color, newLineWidth);
         for (let i = 1; i < points.length; i++) {
@@ -98,7 +105,7 @@ export default {
         resolve();
       });
     },
-    $_connectTwoPoints2 (points, i, isErasing) {
+    $_connectTwoPoints2 (points, i, isErasing): void {
       // TODO: this silently fails for edge case if a stroke only has 1 point
       const prevPoint = points[i - 1]; // this fails silently for the first point of the stroke i = 0
       const prevX = prevPoint.unitX * this.canvas.width;
@@ -114,16 +121,16 @@ export default {
       this.bgCtx.lineTo(curX, curY);
       this.bgCtx.stroke();
     },
-    $_setStyle2 (color = "white", lineWidth = 2) {
+    $_setStyle2 (color = "white", lineWidth = 2): void {
       this.bgCtx.strokeStyle = color;
       this.bgCtx.lineWidth = lineWidth;
       this.bgCtx.lineCap = "round"; // lines at different angles can join into each other
     },
-    $_getPointDuration (stroke) { // measured in seconds
+    $_getPointDuration (stroke: object): void { // measured in seconds
       const strokePeriod = (stroke.endTime - stroke.startTime);
       return strokePeriod / stroke.points.length;
     },
-    $_displayImage (src) {
+    $_displayImage (src: string): void {
       const image = new Image();
       image.src = src;
       image.onload = () => { 
@@ -131,4 +138,5 @@ export default {
       };
     }
   }
-}
+});
+</script>

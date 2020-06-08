@@ -69,6 +69,7 @@
  * Maintains the invariant that the UI <canvas/> contains exactly the strokes from `strokesArray`. 
  * Manages its own state i.e. currentTime, strokesArray, audioBlob and imageBlob.
 */
+import Vue from "vue";
 import BlackboardToolBar from "@/components/BlackboardToolBar.vue";
 import BlackboardCoreDrawing from "@/components/BlackboardCoreDrawing.vue";
 import BlackboardAudioRecorder from "@/components/BlackboardAudioRecorder.vue";
@@ -76,7 +77,7 @@ import ButtonNew from "@/components/ButtonNew.vue";
 import { RecordState } from "@/CONSTANTS.js";
 import { mapState } from "vuex";
 
-export default {
+export default Vue.extend({
   props: {
     strokesArray: {
       type: Array,
@@ -155,5 +156,5 @@ export default {
       this.$refs.BlackboardDrawingCanvas.touchDisabled = !this.$refs.BlackboardDrawingCanvas.touchDisabled;
     }
   }
-};
+});
 </script>

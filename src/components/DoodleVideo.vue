@@ -35,7 +35,7 @@
 </template>
 
 <script>
-import CanvasDrawMixin from "@/mixins/CanvasDrawMixin.js";
+import CanvasDrawMixin from "@/mixins/CanvasDrawMixin.vue";
 import _ from "lodash";
 import { navbarHeight, audioPlayerHeight, aspectRatio } from "@/CONSTANTS.js";
 

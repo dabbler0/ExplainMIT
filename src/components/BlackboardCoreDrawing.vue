@@ -25,7 +25,7 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
 /**
  * A HTML canvas that supports drawing with stylus/touch/mouse. 
  * Maintains the invariant that the UI exactly reflects the strokesArray (see proof):
@@ -47,26 +47,74 @@
  * Therefore, strokesArray <=> UI. 
  */
 import BlackboardToolBar from "@/components/BlackboardToolBar.vue";
-import CanvasDrawMixin from "@/mixins/CanvasDrawMixin.js";
+import CanvasDrawMixin from "@/mixins/CanvasDrawMixin.vue";
 import ButtonNew from "@/components/ButtonNew.vue";
 import { BlackboardTools, RecordState, navbarHeight, toolbarHeight, aspectRatio } from "@/CONSTANTS.js";
 import { isIosSafari } from "@/helpers.js";
+import Vue, { PropType } from "vue"; 
+import mixins from "vue-typed-mixins";
+// import { Point, Stroke } from "@/types";
 
-export default {
+interface Stroke {
+  points: Array<Point>
+  color: String,
+  startTime: Number,
+  endTime: Number
+  width: Number,
+  wasErased?: boolean,
+  isErasing?: boolean
+  strokeNumber?: number
+}
+
+interface Point {
+  readonly x: number,
+  readonly y: number
+}
+
+interface Tool {
+  type: string,
+  color: string,
+  lineWidth: number
+}
+
+// TODO: this is way too mutable
+class StrokeClass implements Stroke {
+  points: Array<Point> = [];
+  color = "white";
+  readonly startTime: number;
+  width = 2; 
+  endTime = 0;
+  isErasing?: boolean; 
+  strokeNumber?: number; 
+
+  constructor(startTime: number, color: string, lineWidth: number, isErasing: boolean, strokeNumber?: number) {
+    this.strokeNumber = strokeNumber;
+    this.startTime = startTime; 
+    this.color = color;
+    this.width = lineWidth; 
+    this.isErasing = isErasing;
+  }
+
+  public add (point: Point): void {
+    this.points.push(point); 
+  }
+}
+
+export default mixins(CanvasDrawMixin).extend({
   props: {
     strokesArray: {
-      type: Array,
+      type: Array as PropType<Array<Stroke>>,
       required: true
     },
     isRealtime: Boolean,
     currentTime: {
       type: Number,
-      default: () => 0
+      default: (): number => 0
     }
   },
-  mixins: [
-    CanvasDrawMixin
-  ],
+  // mixins: [
+  //   CanvasDrawMixin
+  // ],
   components: { 
     BlackboardToolBar, 
     ButtonNew
@@ -74,8 +122,8 @@ export default {
   data () {
     return {
       canvas: null,
-      ctx: null,
       bgCanvas: null,
+      ctx: null,
       bgCtx: null,
       currentTool: { 
         type: BlackboardTools.PEN,
@@ -84,10 +132,8 @@ export default {
       },
       isHoldingLeftClick: false,
       touchDisabled: true, // isIosSafari() is broken
-      localStrokesArray: [...this.strokesArray],
-      currentStroke: { 
-        points: [] 
-      },
+      localStrokesArray: new Array<Stroke>(...this.strokesArray), // [...this.strokesArray],
+      currentStroke: new StrokeClass(),
       currPoint: { 
         x: 0, 
         y: 0 
@@ -101,22 +147,24 @@ export default {
     }
   },
   computed: {
-    imageBlobUrl () {
+    imageBlobUrl (): string {
       return this.imageBlob ? URL.createObjectURL(this.imageBlob) : "";
     },
-    isStrokeEraser () {
+    isStrokeEraser (): boolean {
       return this.currentTool.type === BlackboardTools.STROKE_ERASER;
     },
-    isNormalEraser () {
+    isNormalEraser (): boolean {
       return this.currentTool.type === BlackboardTools.NORMAL_ERASER;
     },
-    isPen () {
+    isPen (): boolean {
       return this.currentTool.type === BlackboardTools.PEN;
     }
   },
   // strokesArray => UI 
   watch: {
     strokesArray () {
+      console.log("localStrokesArray =", this.localStrokesArray);
+      console.log("strokesArray =", this.strokesArray);
       const n = this.strokesArray.length; 
       if (n === 0) {
         this.wipeBoard(); 
@@ -133,8 +181,9 @@ export default {
     }
   },
   mounted () {
+    console.log("strokesArray =", this.strokesArray);
     this.initializeCanvas();
-    document.fonts.ready.then(this.createCustomCusor); // since cursor uses material icons font, load it after fonts are ready
+    document.fonts?.ready.then(this.createCustomCusor); // since cursor uses material icons font, load it after fonts are ready
     window.addEventListener("resize", this.resizeBlackboard, false); 
   },
   destroyed () {
@@ -142,22 +191,24 @@ export default {
   },
   methods: {
     // UI => strokesArray
-    saveStrokeThenReset (e) {
+    saveStrokeThenReset (e: any): void {
       e.preventDefault()
       if (this.currentStroke.points.length === 0) return;  // user is touching the screen despite that touch is disabled
       this.currentStroke.endTime = Number(this.currentTime.toFixed(1));
       this.localStrokesArray.push(this.currentStroke);
       this.$emit("stroke-drawn", this.currentStroke);
       // reset 
-      this.currentStroke = { 
-        points: [] 
-      };
+      this.currentStroke = new StrokeClass(); 
+      // this.currentStroke = { 
+      //   points: [] 
+      // };
       this.prevPoint = { 
         x: -1, 
         y: -1 
       };
     },
-    initializeCanvas () {
+    initializeCanvas (): void {
+      console.log("initialize canvas");
       this.canvas = this.$refs.FrontCanvas;
       this.bgCanvas = this.$refs.BackCanvas;
       this.ctx = this.canvas.getContext("2d");
@@ -170,22 +221,22 @@ export default {
     //     [stroke.startTime, stroke.endTime] = [0, 0];
     //   }
     // },
-    changeTool (tool) {
+    changeTool (tool: Tool): void {
       this.currentTool = tool;
       this.ctx.globalCompositeOperation = (this.isNormalEraser || this.isStrokeEraser) ? // isStrokeEraser now erases in the back like a normal eraser
         "destination-out" : "source-over";
       this.createCustomCusor();
     },
-    async resetBoard () {
+    resetBoard (): void {
       this.wipeBoard();
       this.resetVariables(); 
       this.$emit("board-reset");
     },
-    wipeBoard () {
+    wipeBoard (): void {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.bgCtx.clearRect(0, 0, this.bgCanvas.scrollWidth, this.bgCanvas.scrollHeight); // scroll width safer I think
     },
-    resetVariables () {
+    resetVariables (): void {
       this.localStrokesArray = [];
       this.prevPoint = { 
         x: -1, 
@@ -193,14 +244,15 @@ export default {
       };
       this.imageBlob = null;
     },
-    displayImageFile (imageFile) {
+    displayImageFile (imageFile: any): void {
       this.imageBlob = imageFile; 
       this.$_renderBackground(this.imageBlobUrl);
     },
-    startNewStroke (e) {
+    startNewStroke (e: any): void {
       this.$emit("stroke-start");
       e.preventDefault(); 
       
+      // refactor here
       this.currentStroke = {
         strokeNumber: this.strokesArray.length + 1,
         startTime: Number(this.currentTime.toFixed(1)),
@@ -215,7 +267,7 @@ export default {
       }
       this.$_setStyle(this.currentTool.color, this.currentTool.lineWidth);
     },
-    touchStart (e) {
+    touchStart (e: any): void {
       if (this.isNotValidTouch(e)) return; 
       if (e.touches[0].touchType === "stylus") { 
         this.touchDisabled = true; 
@@ -227,15 +279,15 @@ export default {
         this.drawToPointAndSave(e);
       }
     },
-    touchMove (e) {
+    touchMove (e: any): void {
       if (this.isNotValidTouch(e)) return;  
       if (this.isStrokeEraser) this.eraseStrokesWithinRadius(e); 
       else this.drawToPointAndSave(e);  
     },
-    touchEnd (e) { 
+    touchEnd (e: any): void { 
       this.saveStrokeThenReset(e); 
     },
-    mouseDown (e) {
+    mouseDown (e: any): void {
       this.isHoldingLeftClick = true;
       if (this.isStrokeEraser) { 
         this.eraseStrokesWithinRadius(e); 
@@ -245,7 +297,7 @@ export default {
         this.drawToPointAndSave(e, isMouse);
       }
     },
-    mouseMove (e) {
+    mouseMove (e: any): void {
       if (!this.isHoldingLeftClick) return; 
       if (this.isStrokeEraser) { 
         this.eraseStrokesWithinRadius(e); 
@@ -254,11 +306,11 @@ export default {
         this.drawToPointAndSave(e, isMouse);
       }
     },
-    mouseUp (e) {
+    mouseUp (e: any): void {
       this.isHoldingLeftClick = false;
       this.saveStrokeThenReset(e);
     },
-    drawToPointAndSave (e, isMouse) {
+    drawToPointAndSave (e: any, isMouse = false): void {
       e.preventDefault();
       if (isMouse) { 
         this.currPoint = { 
@@ -271,12 +323,12 @@ export default {
       this.convertAndSavePoint(this.currPoint.x, this.currPoint.y);
       this.drawToPoint(this.currPoint);
     },
-    convertAndSavePoint (x, y) {
+    convertAndSavePoint (x: number, y: number): void {
       const unitX = parseFloat(x / this.canvas.width).toFixed(4);
       const unitY = parseFloat(y / this.canvas.height).toFixed(4);
       this.currentStroke.points.push({ unitX, unitY });
     },
-    eraseStrokesWithinRadius (e) {
+    eraseStrokesWithinRadius (e: any): void {
       e.preventDefault();
       let eraserCenter = {};
       if (this.isHoldingLeftClick) {
@@ -309,11 +361,11 @@ export default {
         }
       }
     },
-    eraseStroke (stroke) {
+    eraseStroke (stroke: any): void {
       stroke.wasErased = true;
       this.$emit("stroke-start");
 
-      const antiStroke = {
+      const antiStroke: Stroke = {
         strokeNumber: this.strokesArray.length + 1,
         isErasing: true,
         lineWidth: stroke.lineWidth + 2,
@@ -323,30 +375,30 @@ export default {
       this.localStrokesArray.push(antiStroke);
       this.$emit("stroke-drawn", antiStroke);
     },
-    getTouchPos (e) {
+    getTouchPos (e: any): void {
       const finger1 = e.touches[0];
       const { left, top } = this.canvas.getBoundingClientRect();
       this.currPoint.x = finger1.pageX - left - window.scrollX;
       this.currPoint.y = finger1.pageY - top - window.scrollY;
     },
-    isNotValidTouch (e) {
+    isNotValidTouch (e: any): boolean {
       if (e.touches.length !== 1) return true; // multiple fingers not allowed
       return this.isFinger(e) && this.touchDisabled;
     },
-    isApplePencil (e) {
+    isApplePencil (e: any): boolean {
       return e.touches[0].touchType === "stylus";
     },
-    isFinger (e) { // not true: could be Surface pen
+    isFinger (e: any): boolean { // not true: could be Surface pen
       return e.touches[0].touchType !== "stylus";
     },
-    drawToPoint ({ x, y }) {
+    drawToPoint ({ x, y }: Point): void {
       if (this.prevPoint.x !== -1) { // start of stroke, don't connect previous points
         this.traceLineTo(x, y);
         this.ctx.stroke();
       }
       this.prevPoint = { x, y };
     },
-    traceLineTo (x, y) {
+    traceLineTo (x: number, y: number): void {
       this.ctx.beginPath();
       this.ctx.moveTo(this.prevPoint.x, this.prevPoint.y);
       this.ctx.lineTo(x, y);
@@ -357,7 +409,7 @@ export default {
       I tried not using a background color, but then the white strokes will be invisible
       I tried not ignoring eraser strokes, but then the eraser strokes will damage not only the strokes but the background as well
     */
-    getThumbnail () {
+    getThumbnail (): Promise<Blob> {
       return new Promise(async resolve => {
         if (this.imageBlob) { // has a background image
           await this.$_renderBackground(this.imageBlobUrl);
@@ -371,8 +423,8 @@ export default {
         this.bgCanvas.toBlob(thumbnail => resolve(thumbnail));
       })
     },
-    resizeBlackboard () {
-      const { BlackboardWrapper } = this.$refs;
+    resizeBlackboard (): void {
+      const BlackboardWrapper: any = this.$refs.BlackboardWrapper; 
       BlackboardWrapper.style.height = "unset" // To reset the blackboard height when the user retries to make video after previewing
       const fullScreenHeight = window.innerHeight - toolbarHeight;
       const realtimeHeight = fullScreenHeight - navbarHeight;
@@ -384,7 +436,7 @@ export default {
       this.$_rescaleCanvas();
       this.$_drawStrokesInstantly();
     },
-    createCustomCusor () {
+    createCustomCusor (): void {
       const dummyCanvas = document.createElement("canvas");
       dummyCanvas.width = 24;
       dummyCanvas.height = 24;
@@ -397,14 +449,14 @@ export default {
       const dataURL = dummyCanvas.toDataURL("image/png");
       this.$refs.FrontCanvas.style.cursor = "url(" + dataURL + ") 0 24, auto";
     },
-    async toggleFullScreen () {
+    async toggleFullScreen (): Promise<void> {
       this.isFullScreen = !this.isFullScreen;
       await this.$nextTick();
       this.resizeBlackboard();
       window.scrollTo(0, document.body.scrollHeight) // to prevent being scrolled to the middle of page when Exiting the fullscreen
     }
   }
-};
+});
 </script>
 
 <style scoped>

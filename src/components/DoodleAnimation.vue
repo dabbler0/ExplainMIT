@@ -46,7 +46,7 @@
 </template>
 
 <script>
-import CanvasDrawMixin from "@/mixins/CanvasDrawMixin.js";
+import CanvasDrawMixin from "@/mixins/CanvasDrawMixin.vue";
 import _ from "lodash";
 import { navbarHeight, audioPlayerHeight, aspectRatio } from "@/CONSTANTS.js";
 
@@ -55,7 +55,9 @@ export default {
     strokesArray: Array,
     backgroundUrl: String
   },
-  mixins: [CanvasDrawMixin],
+  mixins: [
+    CanvasDrawMixin
+  ],
   data: () => ({
     currentFrameIdx: -1,
     isPlaying: true,
